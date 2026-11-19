@@ -1,12 +1,9 @@
 // Open-sourced by BaoLT
 
 // Auth service handles authentication and session management use cases.
-// Provides login, registration, session validation, and logout operations.
-// Manages account state including ban status and last login tracking.
-// Login rehashes legacy MD5 password rows to bcrypt(storedMD5) on first
-// successful login (F1.5 hardening, 2026-05-03) so a stolen DB row is no
-// longer a working credential on its own. The Flash client keeps sending
-// MD5(plaintext); after rehash the bcrypt branch wins on the next login.
+// Provides login (legacy Flash MD5 and modern Web plaintext over TLS),
+// registration, session validation, and logout operations.
+// New accounts and upgraded legacy rows use Argon2id hashing.
 package auth
 
 import (
@@ -14,7 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"golang.org/x/crypto/bcrypt"
 
 	"mcgame-server/internal/domain/auth"
 	pkgerrors "mcgame-server/pkg/errors"
@@ -67,19 +63,48 @@ func (s *Service) Login(ctx context.Context, req *LoginRequest) (*LoginResponse,
 		return nil, pkgerrors.ErrInvalidCredentials
 	}
 
-	if !auth.IsBcryptHash(account.PasswordHash) {
-		s.rehashLegacyPassword(ctx, account)
+	if !auth.IsArgon2idHash(account.PasswordHash) && !auth.IsBcryptHash(account.PasswordHash) {
+		s.rehashToArgon2id(ctx, account, req.Password)
 	}
 
+	return s.completeLogin(ctx, account, req.IPAddress)
+}
+
+func (s *Service) LoginPlaintext(ctx context.Context, req *LoginRequest) (*LoginResponse, error) {
+	account, err := s.accountRepo.FindByUsername(ctx, req.Username)
+	if err != nil {
+		if pkgerrors.Is(err, pkgerrors.ErrAccountNotFound) {
+			s.logger.Debug("Web login failed: account not found",
+				zap.String("username", req.Username))
+			return nil, pkgerrors.ErrInvalidCredentials
+		}
+		return nil, err
+	}
+
+	ok, needsUpgrade := account.CheckPlaintextPassword(req.Password)
+	if !ok {
+		s.logger.Debug("Web login failed: invalid password",
+			zap.String("username", req.Username))
+		return nil, pkgerrors.ErrInvalidCredentials
+	}
+
+	if needsUpgrade {
+		s.rehashToArgon2id(ctx, account, req.Password)
+	}
+
+	return s.completeLogin(ctx, account, req.IPAddress)
+}
+
+func (s *Service) completeLogin(ctx context.Context, account *auth.Account, ipAddress string) (*LoginResponse, error) {
 	if account.IsBannedNow() {
 		s.logger.Debug("Login failed: account banned",
-			zap.String("username", req.Username))
+			zap.String("username", account.Username))
 		return nil, pkgerrors.ErrAccountBanned
 	}
 
 	_ = s.sessionRepo.DeleteByAccountID(ctx, account.ID)
 
-	session, err := auth.NewSession(account.ID, account.Username, req.IPAddress)
+	session, err := auth.NewSession(account.ID, account.Username, ipAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +117,8 @@ func (s *Service) Login(ctx context.Context, req *LoginRequest) (*LoginResponse,
 
 	s.logger.Info("User logged in",
 		zap.String("username", account.Username),
-		zap.String("session_id", session.ID))
+		zap.String("session_id", session.ID),
+		zap.String("ip", ipAddress))
 
 	return &LoginResponse{
 		SessionID: session.ID,
@@ -161,23 +187,23 @@ func (s *Service) GetAccount(ctx context.Context, accountID uuid.UUID) (*auth.Ac
 	return s.accountRepo.FindByID(ctx, accountID)
 }
 
-func (s *Service) rehashLegacyPassword(ctx context.Context, account *auth.Account) {
-	rehashed, err := bcrypt.GenerateFromPassword([]byte(account.PasswordHash), bcrypt.DefaultCost)
+func (s *Service) rehashToArgon2id(ctx context.Context, account *auth.Account, secret string) {
+	rehashed, err := auth.HashPasswordArgon2id(secret)
 	if err != nil {
-		s.logger.Warn("legacy MD5 rehash failed",
+		s.logger.Warn("password argon2id rehash failed",
 			zap.String("username", account.Username),
 			zap.Error(err))
 		return
 	}
 
-	account.PasswordHash = string(rehashed)
+	account.PasswordHash = rehashed
 	if err := s.accountRepo.Update(ctx, account); err != nil {
-		s.logger.Warn("legacy MD5 rehash persist failed",
+		s.logger.Warn("password argon2id rehash persist failed",
 			zap.String("username", account.Username),
 			zap.Error(err))
 		return
 	}
 
-	s.logger.Info("legacy MD5 rehashed to bcrypt",
+	s.logger.Info("password hash upgraded to argon2id",
 		zap.String("username", account.Username))
 }

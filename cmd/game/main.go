@@ -9,7 +9,7 @@ import (
 	"os"
 )
 
-const usage = "usage: game [-y] <setup|up|down|reset>..."
+const usage = "usage: game [-y] <setup|up|down|reset|web>..."
 
 func main() {
 	assumeYes := os.Getenv("CONFIRM") == "1"
@@ -27,7 +27,7 @@ func main() {
 	}
 	for _, command := range commands {
 		switch command {
-		case "setup", "up", "down", "reset":
+		case "setup", "up", "down", "reset", "web":
 		default:
 			fmt.Fprintln(os.Stderr, usage)
 			os.Exit(2)

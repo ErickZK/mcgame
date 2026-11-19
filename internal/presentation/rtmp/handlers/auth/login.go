@@ -58,10 +58,15 @@ func (h *Handler) OnConnectAuth(ctx *rtmp.RPCContext, args []interface{}) (inter
 		return nil, pkgerrors.ErrInvalidCredentials
 	}
 
+	clientIP := "unknown"
+	if ctx.Connection != nil {
+		clientIP = ctx.Connection.GetRemoteIP()
+	}
+
 	resp, err := h.authService.Login(ctx.Context, &appauth.LoginRequest{
 		Username:  username,
 		Password:  password,
-		IPAddress: "unknown",
+		IPAddress: clientIP,
 	})
 	if err != nil {
 		h.logger.Warn("OnConnectAuth: login failed",

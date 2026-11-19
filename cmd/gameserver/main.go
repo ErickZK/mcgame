@@ -81,6 +81,7 @@ import (
 	infraredis "mcgame-server/internal/infrastructure/redis"
 	"mcgame-server/internal/infrastructure/rtmp"
 	infrasb "mcgame-server/internal/infrastructure/scheduleboss"
+	infraWS "mcgame-server/internal/infrastructure/ws"
 	"mcgame-server/internal/presentation/rtmp/chatfmt"
 	achievementhandler "mcgame-server/internal/presentation/rtmp/handlers/achievement"
 	activityhandler "mcgame-server/internal/presentation/rtmp/handlers/activity"
@@ -827,8 +828,21 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 		}
 	}()
 
+	var wsServer *infraWS.Server
+	wsErr := make(chan error, 1)
+	if cfg.WS.Enabled {
+		wsServer = infraWS.NewServer(cfg.WS, log, authService, rtmpServer, dispatcher, redisClient.GetClient())
+		go func() {
+			if err := wsServer.Start(); err != nil {
+				wsErr <- err
+			}
+		}()
+	}
+
 	log.Info("Monolith server started",
 		zap.String("rtmp_address", cfg.RTMP.Address()),
+		zap.String("ws_address", cfg.WS.Address()),
+		zap.Bool("ws_enabled", cfg.WS.Enabled),
 		zap.String("admin_http_address", cfg.AdminHTTP.Address()))
 
 	quit := make(chan os.Signal, 1)
@@ -841,12 +855,20 @@ func runGameServer(cfg *config.Config, log *zap.Logger, mode config.ServerMode) 
 		log.Error("Server error", zap.Error(err))
 	case err := <-adminErr:
 		log.Error("Admin HTTP server error", zap.Error(err))
+	case err := <-wsErr:
+		log.Error("WebSocket gateway error", zap.Error(err))
 	}
 
 	log.Info("Shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
+	if wsServer != nil {
+		if err := wsServer.Stop(ctx); err != nil {
+			log.Error("Error stopping WebSocket gateway", zap.Error(err))
+		}
+	}
 
 	if err := rtmpServer.Stop(); err != nil {
 		log.Error("Error stopping RTMP server", zap.Error(err))

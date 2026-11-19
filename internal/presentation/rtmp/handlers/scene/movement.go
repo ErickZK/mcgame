@@ -79,6 +79,10 @@ func (h *Handler) UpdatePosition(ctx *rtmp.RPCContext, args []interface{}) (inte
 		currentMapID = char.MapID
 	}
 
+	if err := h.validateCharacterMovement(ctx, characterID, currentMapID, x, y); err != nil {
+		return nil, err
+	}
+
 	pos := character.Position{MapID: currentMapID, X: x, Y: y, Direction: dir}
 	if err := h.charService.UpdatePosition(ctx.Context, characterID, pos); err != nil {
 		return nil, err
@@ -161,6 +165,10 @@ func (h *Handler) UpdatePositionRun(ctx *rtmp.RPCContext, args []interface{}) (i
 			return nil, err
 		}
 		currentMapID = char.MapID
+	}
+
+	if err := h.validateCharacterMovement(ctx, characterID, currentMapID, x, y); err != nil {
+		return nil, err
 	}
 
 	pos := character.Position{MapID: currentMapID, X: x, Y: y, Direction: 0}
@@ -289,6 +297,10 @@ func (h *Handler) ToMovable(ctx *rtmp.RPCContext, args []interface{}) (interface
 		h.sceneManager.BroadcastToScene(ctx.Connection.GetChannelID(), targetMapID, ctx.ConnID, "onCharTeleport", posUpdate)
 	}
 
+	if h.movementValidator != nil {
+		h.movementValidator.ResetAnchor(characterID, targetMapID, targetX, targetY, time.Now())
+	}
+
 	return map[string]interface{}{
 		"success":    true,
 		"mapId":      targetMapID,
@@ -296,6 +308,42 @@ func (h *Handler) ToMovable(ctx *rtmp.RPCContext, args []interface{}) (interface
 		"posY":       targetY,
 		"sceneReady": true,
 	}, nil
+}
+
+func (h *Handler) validateCharacterMovement(ctx *rtmp.RPCContext, characterID int64, mapID int, x int, y int) error {
+	if h.movementValidator == nil {
+		return nil
+	}
+	mapWidth, mapHeight := 0, 0
+	if h.sceneService != nil && mapID > 0 {
+		mapWidth, mapHeight = h.sceneService.GetMapBounds(mapID)
+	}
+	res := h.movementValidator.ValidateAndRecord(characterID, mapID, x, y, mapWidth, mapHeight, time.Now())
+	if res.Allowed {
+		return nil
+	}
+	if h.logger != nil {
+		h.logger.Warn("Rejected suspicious movement",
+			zap.Uint32("conn_id", ctx.ConnID),
+			zap.Int64("char_id", characterID),
+			zap.Int("map_id", mapID),
+			zap.Int("target_x", x),
+			zap.Int("target_y", y),
+			zap.Int("last_x", res.LastX),
+			zap.Int("last_y", res.LastY),
+			zap.String("reason", res.Reason),
+		)
+	}
+	if ctx.Connection != nil && res.LastMapID == mapID && (res.LastX > 0 || res.LastY > 0) {
+		_ = h.sendCallbackFn(ctx.Connection, "onCR", map[string]interface{}{
+			"callByUdcp": true,
+			"id":         characterID,
+			"x":          res.LastX,
+			"y":          res.LastY,
+			"route":      [][]int{{res.LastX, res.LastY}},
+		})
+	}
+	return pkgerrors.ErrInvalidInput
 }
 
 func (h *Handler) ToSafe(ctx *rtmp.RPCContext, args []interface{}) (interface{}, error) {

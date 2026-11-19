@@ -12,11 +12,12 @@ import (
 	appitem "mcgame-server/internal/application/item"
 	apppet "mcgame-server/internal/application/pet"
 	appquest "mcgame-server/internal/application/quest"
-	appsb "mcgame-server/internal/application/scheduleboss"
 	appscene "mcgame-server/internal/application/scene"
+	appsb "mcgame-server/internal/application/scheduleboss"
 	"mcgame-server/internal/gamedata"
 	redisstore "mcgame-server/internal/infrastructure/persistence/redis"
 	"mcgame-server/internal/infrastructure/rtmp"
+	"mcgame-server/internal/infrastructure/security"
 	questhandler "mcgame-server/internal/presentation/rtmp/handlers/quest"
 
 	"go.uber.org/zap"
@@ -37,6 +38,7 @@ type Handler struct {
 	rtmpServer          *rtmp.Server
 	presenceStore       *redisstore.SocialPresenceStore
 	questNotify         *questhandler.QuestNotifyHelper
+	movementValidator   *security.MovementValidator
 	logger              *zap.Logger
 	sendCallbackFn      func(conn *rtmp.Connection, method string, args ...interface{}) error
 	lookupConnFn        func(characterID string) *rtmp.Connection
@@ -49,10 +51,11 @@ type onlineRewardSender interface {
 
 func NewHandler(charService *appchar.Service, sceneService *appscene.Service, sceneManager *rtmp.SceneManager, logger *zap.Logger) *Handler {
 	h := &Handler{
-		charService:  charService,
-		sceneService: sceneService,
-		sceneManager: sceneManager,
-		logger:       logger,
+		charService:       charService,
+		sceneService:      sceneService,
+		sceneManager:      sceneManager,
+		movementValidator: security.NewMovementValidator(0, 0),
+		logger:            logger,
 	}
 	h.sendCallbackFn = func(conn *rtmp.Connection, method string, args ...interface{}) error {
 		return conn.SendCallback(method, args...)

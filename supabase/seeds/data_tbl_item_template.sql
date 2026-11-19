@@ -2948,9 +2948,7 @@ Vân, có vị rất ngon', 0, 0, 0, 0, 0, 4030200090008, NULL, -1, 0, 5, 0, 0, 
 	(21, 0, -1, 0, 'Gỗ cực tốt chọn ra từ các loại gỗ thường', 8, 0, 0, 0, 0, 4030200020002, 'Dùng để chế tạo, thăng cấp và thay đổi thuộc tính   
 
 khóa trang bị, dùng ở phần Chế tạo', -1, 0, 6, 0, 0, 0, 0, 0, 'Gỗ Tốt', 0, 0, 0, 0, '|1|2|3|4|6|5|', 1, 0, 0, 0, 99999, -1, 1, 602, 4),
-	(23, 0, -1, 0, 'Pha lê lấp lánh đẹp mắt', 8, 0, 0, 0, 0, 4030200030002, 'Dùng để chế tạo, thăng cấp và thay đổi 
-thuộc tính   
-khóa trang bị, dùng ở phần Chế tạo', -1, 0, 6, 0, 0, 0, 0, 0, 'Pha Lê', 0, 0, 0, 0, '|1|2|3|4|6|5|', 1, 0, 0, 0, 99999, -1, 1, 603, 4),
+	(23, 0, -1, 0, 'O belo cristal', 8, 0, 0, 0, 0, 4030200030002, 'Usado para criar, melhorar e alterar itens na Criação.', -1, 0, 6, 0, 0, 0, 0, 0, 'Cristal', 0, 0, 0, 0, '|1|2|3|4|6|5|', 1, 0, 0, 0, 99999, -1, 1, 603, 4),
 	(621, 1, -1, 0, 'Thật không hiểu sao có người thích ăn 
 thứ này', 0, 0, 0, 0, 0, 3060100000012, NULL, -1, 0, 5, 0, 0, 0, 0, 0, 'Ốc', 0, 1, 0, 0, NULL, 1, NULL, 0, 0, 99999, -1, 0, 508, 4),
 	(25, 0, -1, 0, 'Loại vải cơ bản dùng may áo', 5, 0, 0, 0, 0, 4030200040001, 'Dùng để chế tạo, thăng cấp và thay đổi thuộc tính   

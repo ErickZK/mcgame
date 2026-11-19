@@ -64,8 +64,37 @@ func (s *stack) run(command string) error {
 		return s.down()
 	case "reset":
 		return s.reset()
+	case "web":
+		return s.buildWebClient()
 	}
 	return fmt.Errorf(usage)
+}
+
+func (s *stack) buildWebClient() error {
+	webDir := filepath.Join(s.root, "web-client")
+	if _, err := os.Stat(filepath.Join(webDir, "package.json")); err != nil {
+		return fmt.Errorf("web-client not found at %s", webDir)
+	}
+	if _, err := os.Stat(filepath.Join(webDir, "node_modules")); err != nil {
+		fmt.Println("===> Installing web-client dependencies...")
+		if err := attach(exec.Command("pnpm", "--dir", webDir, "install")).Run(); err != nil {
+			return fmt.Errorf("pnpm install failed: %w", err)
+		}
+	}
+	fmt.Println("===> Building web-client (zero-downtime update)...")
+	if err := attach(exec.Command("pnpm", "--dir", webDir, "run", "build")).Run(); err != nil {
+		return fmt.Errorf("web-client build failed: %w", err)
+	}
+	fmt.Println("===> Web client updated at http://localhost:8888 (no server restart needed)")
+	return nil
+}
+
+func (s *stack) ensureWebClientDist() error {
+	distIndex := filepath.Join(s.root, "web-client", "dist", "index.html")
+	if _, err := os.Stat(distIndex); err == nil {
+		return nil
+	}
+	return s.buildWebClient()
 }
 
 func (s *stack) composeCmd(args ...string) *exec.Cmd {
@@ -146,6 +175,9 @@ func (s *stack) up() error {
 	if _, err := os.Stat(s.envPath); err != nil {
 		return fmt.Errorf("missing docker/.env; run: game setup")
 	}
+	if err := s.ensureWebClientDist(); err != nil {
+		return err
+	}
 	if err := s.migrate(); err != nil {
 		return err
 	}
@@ -160,6 +192,11 @@ func (s *stack) up() error {
 	if err := exec.Command("docker", "builder", "prune", "-f").Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "warning: docker builder prune failed:", err)
 	}
+	fmt.Println("===> Stack online:")
+	fmt.Println("     Web Client      : http://localhost:8888")
+	fmt.Println("     WebSocket / API : ws://localhost:8888/ws  |  http://localhost:8888/api/auth/login")
+	fmt.Println("     Flash Client    : http://localhost:8888/s/sv/  (RTMP :1935)")
+	fmt.Println("     Admin Dashboard : http://127.0.0.1:3000")
 	return nil
 }
 

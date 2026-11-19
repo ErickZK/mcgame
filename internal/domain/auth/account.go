@@ -1,10 +1,9 @@
 // Open-sourced by BaoLT
 
 // Account entity represents a user account with authentication data.
-// Supports bcrypt and legacy MD5 password hashing for Flash client compatibility.
-// Handles account bans with optional expiration times.
-// Password compares use crypto/subtle.ConstantTimeCompare (F1 hardening, 2026-05-03).
-// Legacy MD5 password rows are migrated to bcrypt(MD5) by auth.Service.Login (F1.5).
+// Supports Argon2id (primary), legacy bcrypt, and legacy MD5 password hashing
+// for Flash and Web client coexistence. Handles account bans with optional
+// expiration times. Password compares use constant-time comparison.
 package auth
 
 import (
@@ -37,7 +36,7 @@ type Account struct {
 }
 
 func NewAccount(username, password, email string) (*Account, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hash, err := HashPasswordArgon2id(password)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +45,7 @@ func NewAccount(username, password, email string) (*Account, error) {
 	return &Account{
 		ID:                uuid.New(),
 		Username:          username,
-		PasswordHash:      string(hash),
+		PasswordHash:      hash,
 		SecondaryPassword: DefaultSecondaryPasswordMD5,
 		Email:             email,
 		VIPLevel:          0,
@@ -58,14 +57,46 @@ func NewAccount(username, password, email string) (*Account, error) {
 }
 
 func (a *Account) CheckPassword(password string) bool {
+	if a.PasswordHash == "" || password == "" {
+		return false
+	}
+	if IsArgon2idHash(a.PasswordHash) {
+		return VerifyPasswordArgon2id(password, a.PasswordHash)
+	}
 	if IsBcryptHash(a.PasswordHash) {
 		err := bcrypt.CompareHashAndPassword([]byte(a.PasswordHash), []byte(password))
 		return err == nil
 	}
-	if a.PasswordHash == "" || password == "" {
-		return false
-	}
 	return subtle.ConstantTimeCompare([]byte(a.PasswordHash), []byte(password)) == 1
+}
+
+func (a *Account) CheckPlaintextPassword(plaintext string) (bool, bool) {
+	if a.PasswordHash == "" || plaintext == "" {
+		return false, false
+	}
+	md5Pass := MD5Hex(plaintext)
+	if IsArgon2idHash(a.PasswordHash) {
+		if VerifyPasswordArgon2id(plaintext, a.PasswordHash) {
+			return true, false
+		}
+		if VerifyPasswordArgon2id(md5Pass, a.PasswordHash) {
+			return true, true
+		}
+		return false, false
+	}
+	if IsBcryptHash(a.PasswordHash) {
+		if bcrypt.CompareHashAndPassword([]byte(a.PasswordHash), []byte(plaintext)) == nil {
+			return true, true
+		}
+		if bcrypt.CompareHashAndPassword([]byte(a.PasswordHash), []byte(md5Pass)) == nil {
+			return true, true
+		}
+		return false, false
+	}
+	if subtle.ConstantTimeCompare([]byte(a.PasswordHash), []byte(md5Pass)) == 1 {
+		return true, true
+	}
+	return false, false
 }
 
 func (a *Account) CheckSecondaryPassword(passwordMD5 string) bool {
@@ -77,11 +108,11 @@ func (a *Account) CheckSecondaryPassword(passwordMD5 string) bool {
 }
 
 func (a *Account) SetPassword(password string) error {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hash, err := HashPasswordArgon2id(password)
 	if err != nil {
 		return err
 	}
-	a.PasswordHash = string(hash)
+	a.PasswordHash = hash
 	return nil
 }
 

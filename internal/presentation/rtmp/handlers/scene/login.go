@@ -38,6 +38,9 @@ func (h *Handler) SceneLogin(ctx *rtmp.RPCContext, args []interface{}) (interfac
 
 	channelID := ctx.Connection.GetChannelID()
 	ctx.Connection.SetSceneInfo(char.MapID, characterID)
+	if h.movementValidator != nil {
+		h.movementValidator.ResetAnchor(characterID, char.MapID, char.PosX, char.PosY, time.Now())
+	}
 	h.sceneManager.AddToScene(channelID, char.MapID, ctx.Connection)
 	_ = rtmputils.UpsertSocialPresenceFromCharacter(ctx.Context, h.presenceStore, char, channelID)
 
@@ -217,6 +220,10 @@ func (h *Handler) SceneChange(ctx *rtmp.RPCContext, args []interface{}) (interfa
 	}
 
 	ctx.Connection.ResetSceneEntryRateLimits()
+
+	if h.movementValidator != nil {
+		h.movementValidator.ResetAnchor(characterID, newRoomID, dest.X, dest.Y, time.Now())
+	}
 
 	if err := ctx.Connection.SendCallback("onSceneEnter", newRoomID, dest.X, dest.Y, -1); err != nil {
 		h.logger.Error("Failed to send onSceneEnter callback", zap.Uint32("conn_id", ctx.ConnID), zap.Error(err))

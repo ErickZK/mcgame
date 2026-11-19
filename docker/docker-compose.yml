@@ -619,7 +619,7 @@ services:
       mcgame-server:
         condition: service_started
     ports:
-      - ${ADMIN_DASHBOARD_PORT:-3000}:3000
+      - ${BIND_INTERNAL_ADDR:-127.0.0.1}:${ADMIN_DASHBOARD_PORT:-3000}:3000
     volumes:
       - ../frontend/s/res:/app/frontend/s/res:ro
     environment:
@@ -639,7 +639,7 @@ services:
     restart: unless-stopped
     command: redis-server --appendonly yes
     ports:
-      - 6379:6379
+      - ${BIND_INTERNAL_ADDR:-127.0.0.1}:6379:6379
     volumes:
       - redis-data:/data:Z
     healthcheck:
@@ -660,10 +660,11 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - 2112:2112
+      - ${BIND_INTERNAL_ADDR:-127.0.0.1}:2112:2112
     expose:
       - "1935"
       - "8080"
+      - "8090"
     volumes:
       - ../temp:/app/temp
     environment:
@@ -696,6 +697,12 @@ services:
       - MCGAME_RTMP_CHUNK_SIZE=${GAME_RTMP_CHUNK_SIZE:-4096}
       - MCGAME_RTMP_MAX_CONNECTIONS=${GAME_RTMP_MAX_CONNECTIONS:-1000}
       - MCGAME_RTMP_TRUST_PROXY_PROTOCOL=true
+      - MCGAME_WS_ENABLED=${GAME_WS_ENABLED:-true}
+      - MCGAME_WS_HOST=0.0.0.0
+      - MCGAME_WS_PORT=8090
+      - MCGAME_WS_TRUST_PROXY_HEADERS=true
+      - MCGAME_WS_MAX_CONNECTIONS=${GAME_WS_MAX_CONNECTIONS:-2000}
+      - MCGAME_WS_MAX_CONNS_PER_IP=${GAME_WS_MAX_CONNS_PER_IP:-5}
       - MCGAME_LOGGING_LEVEL=${GAME_LOG_LEVEL:-debug}
       - MCGAME_LOGGING_FORMAT=${GAME_LOG_FORMAT:-console}
       - MCGAME_LOGGING_OUTPUT_PATH=/app/temp/mcgame-server.log
@@ -715,6 +722,7 @@ services:
       - ./nginx/rtmp.conf:/etc/nginx/nginx.conf:ro
       - ../frontend/s:/usr/share/nginx/html/s:ro
       - ../frontend/crossdomain.xml:/usr/share/nginx/html/crossdomain.xml:ro
+      - ../web-client/dist:/usr/share/nginx/html/web:ro
 
 volumes:
   db-config:

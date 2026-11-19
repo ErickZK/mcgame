@@ -206,6 +206,13 @@ func enrichInstanceRecordData(rpcCtx context.Context, repo gamedatastore.Reposit
 		if tVal, ok := templateData["t"]; ok {
 			recordData["t"] = tVal
 		}
+		// Send translated template text with the live instance. The Flash client
+		// otherwise falls back to its embedded Vietnamese GameData description.
+		for _, field := range []string{"name", "description", "info"} {
+			if value, ok := templateData[field]; ok {
+				recordData[field] = value
+			}
+		}
 	}
 	if _, ok := recordData["t"]; !ok {
 		recordData["t"] = -1

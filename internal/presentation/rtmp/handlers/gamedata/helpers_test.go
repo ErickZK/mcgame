@@ -172,7 +172,7 @@ func TestEnrichInstanceRecordData_ParsesStringProperties(t *testing.T) {
 func TestEnrichInstanceRecordData_LoadsTemplateFromRepositoryAliases(t *testing.T) {
 	repo := stubRepo{
 		records: map[string]json.RawMessage{
-			"TBL_EQUIPT_TEMPLATE:757": json.RawMessage(`{"id":757,"t":6,"color":3}`),
+			"TBL_EQUIPT_TEMPLATE:757": json.RawMessage(`{"id":757,"t":6,"color":3,"name":"Espada traduzida","description":"Descrição traduzida","info":"Info traduzida"}`),
 		},
 	}
 	recordData := map[string]interface{}{
@@ -206,6 +206,15 @@ func TestEnrichInstanceRecordData_LoadsTemplateFromRepositoryAliases(t *testing.
 	}
 	if got := safeInterfaceToInt(recordData["color"]); got != 1 {
 		t.Fatalf("expected display color 1, got %d", got)
+	}
+	if got := recordData["name"]; got != "Espada traduzida" {
+		t.Fatalf("expected translated name, got %#v", got)
+	}
+	if got := recordData["description"]; got != "Descrição traduzida" {
+		t.Fatalf("expected translated description, got %#v", got)
+	}
+	if got := recordData["info"]; got != "Info traduzida" {
+		t.Fatalf("expected translated info, got %#v", got)
 	}
 }
 

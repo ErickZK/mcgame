@@ -33,3 +33,18 @@ docs/tools/
 # Local config
 *.local.*
 .env
+
+# Large non-Go directories not needed by gameserver build
+extracted/
+work/
+frontend/
+web-client/
+dashboard/
+docker/
+supabase/
+temp/
+docs/client/
+docs/flashplayer/
+docs/research/
+docs/memory/
+*.log

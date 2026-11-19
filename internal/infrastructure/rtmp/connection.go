@@ -34,6 +34,7 @@ type DisconnectNotifier interface {
 type Connection struct {
 	ID                      uint32
 	netConn                 net.Conn
+	remoteIP                string
 	transport               Transport
 	dispatcher              *RPCDispatcher
 	logger                  *zap.Logger
@@ -102,6 +103,28 @@ func (c *Connection) GetTransport() Transport {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	return c.transport
+}
+
+func (c *Connection) SetRemoteIP(ip string) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.remoteIP = strings.TrimSpace(ip)
+}
+
+func (c *Connection) GetRemoteIP() string {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	if c.remoteIP != "" {
+		return c.remoteIP
+	}
+	if c.netConn != nil && c.netConn.RemoteAddr() != nil {
+		raw := c.netConn.RemoteAddr().String()
+		if host, _, err := net.SplitHostPort(raw); err == nil && host != "" {
+			return host
+		}
+		return raw
+	}
+	return "unknown"
 }
 
 func (c *Connection) ResetSceneEntryRateLimits() {

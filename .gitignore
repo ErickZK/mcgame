@@ -18,3 +18,11 @@ temp/exported-resources/
 .worktrees/
 dashboard/tsconfig.tsbuildinfo
 .antigravitycli
+extracted/
+work/
+web-client/dist/
+web-client/public/assets/
+web-client/tsconfig.tsbuildinfo
+*.decoded.swf
+*.decoded.fws
+hs_err_pid*.log

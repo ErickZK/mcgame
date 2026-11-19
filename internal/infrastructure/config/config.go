@@ -29,6 +29,7 @@ type Config struct {
 	Redis        RedisConfig       `mapstructure:"redis"`
 	AdminHTTP    AdminHTTPConfig   `mapstructure:"admin_http"`
 	RTMP         RTMPConfig        `mapstructure:"rtmp"`
+	WS           WSConfig          `mapstructure:"ws"`
 	Logging      LoggingConfig     `mapstructure:"logging"`
 	Gateway      GatewayConfig     `mapstructure:"gateway"`
 	Performance  PerformanceConfig `mapstructure:"performance"`
@@ -103,6 +104,21 @@ func (c RTMPConfig) Address() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.Port)
 }
 
+type WSConfig struct {
+	Enabled           bool     `mapstructure:"enabled"`
+	Host              string   `mapstructure:"host"`
+	Port              int      `mapstructure:"port"`
+	AllowedOrigins    []string `mapstructure:"allowed_origins"`
+	TrustProxyHeaders bool     `mapstructure:"trust_proxy_headers"`
+	MaxConnections    int      `mapstructure:"max_connections"`
+	MaxConnsPerIP     int      `mapstructure:"max_conns_per_ip"`
+	MaxMessageBytes   int      `mapstructure:"max_message_bytes"`
+}
+
+func (c WSConfig) Address() string {
+	return fmt.Sprintf("%s:%d", c.Host, c.Port)
+}
+
 type LoggingConfig struct {
 	Level      string `mapstructure:"level"`
 	Format     string `mapstructure:"format"`
@@ -167,6 +183,15 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("rtmp.read_timeout", 30*time.Second)
 	v.SetDefault("rtmp.write_timeout", 30*time.Second)
 	v.SetDefault("rtmp.trust_proxy_protocol", false)
+
+	v.SetDefault("ws.enabled", true)
+	v.SetDefault("ws.host", "0.0.0.0")
+	v.SetDefault("ws.port", 8090)
+	v.SetDefault("ws.allowed_origins", []string{"http://localhost:5173", "http://localhost:8888", "http://127.0.0.1:5173", "http://127.0.0.1:8888"})
+	v.SetDefault("ws.trust_proxy_headers", true)
+	v.SetDefault("ws.max_connections", 2000)
+	v.SetDefault("ws.max_conns_per_ip", 5)
+	v.SetDefault("ws.max_message_bytes", 65536)
 
 	v.SetDefault("logging.level", "info")
 	v.SetDefault("logging.format", "json")

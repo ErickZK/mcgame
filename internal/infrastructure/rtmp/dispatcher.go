@@ -34,6 +34,8 @@ type RPCDispatcher struct {
 	rateLimits            map[string]time.Duration
 	quietMethods          map[string]bool
 	silentDropOnRateLimit map[string]bool
+	serializedMethods     map[string]bool
+	charLocks             sync.Map
 	logger                *zap.Logger
 	mutex                 sync.RWMutex
 }
@@ -102,7 +104,59 @@ func NewRPCDispatcher(logger *zap.Logger) *RPCDispatcher {
 		logger: logger,
 	}
 	d.setDefaultRateLimits()
+	d.setDefaultSerializedMethods()
 	return d
+}
+
+func (d *RPCDispatcher) setDefaultSerializedMethods() {
+	d.serializedMethods = map[string]bool{
+		"moveItem":             true,
+		"moveItemNum":          true,
+		"dropItem":             true,
+		"useItem":              true,
+		"bagSort":              true,
+		"equipOn":              true,
+		"equipOff":             true,
+		"repair":               true,
+		"repairAll":            true,
+		"tradeConfirm":         true,
+		"tradeAccept":          true,
+		"tradeAddItem":         true,
+		"tradeAddMoney":        true,
+		"buyItem":              true,
+		"sellItem":             true,
+		"buyVipShopItem":       true,
+		"addMail":              true,
+		"takeMail":             true,
+		"auctionBuy":           true,
+		"auctionAdd":           true,
+		"MysteryExchangeItem":  true,
+		"MysteryExchangeScore": true,
+		"finishQuest":          true,
+		"takeQuest":            true,
+		"petEquipOn":           true,
+		"petEquipOff":          true,
+		"jewelSet":             true,
+		"jewelDel":             true,
+		"unlockMoney":          true,
+	}
+}
+
+func (d *RPCDispatcher) lockCharacter(charID string) func() {
+	if charID == "" {
+		return func() {}
+	}
+	v, _ := d.charLocks.LoadOrStore(charID, &sync.Mutex{})
+	mu := v.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
+}
+
+func (d *RPCDispatcher) HasHandler(method string) bool {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+	_, ok := d.handlers[method]
+	return ok
 }
 
 func (d *RPCDispatcher) setDefaultRateLimits() {
@@ -241,6 +295,11 @@ func (d *RPCDispatcher) Dispatch(conn *Connection, method string, args []interfa
 	}
 
 	session := conn.GetSession()
+	if d.serializedMethods[method] && session.CharacterID != "" {
+		unlock := d.lockCharacter(session.CharacterID)
+		defer unlock()
+	}
+
 	ctx := &RPCContext{
 		Context:     context.Background(),
 		ConnID:      conn.ID,
